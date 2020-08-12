@@ -1,22 +1,17 @@
 package authenticator
 
 import (
-	"context"
 	"crypto/md5"
 	"crypto/sha256"
 	"crypto/sha512"
 	"hash"
 
-	"github.com/dgrijalva/jwt-go"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/neuronlabs/neuron/auth"
 	"github.com/neuronlabs/neuron/controller"
-	"github.com/neuronlabs/neuron/database"
 	"github.com/neuronlabs/neuron/errors"
 	"github.com/neuronlabs/neuron/mapping"
-	"github.com/neuronlabs/neuron/query/filter"
-	"github.com/neuronlabs/neuron/store"
 )
 
 var (
@@ -27,9 +22,6 @@ var (
 // It is used to provide full authentication process for the
 type Authenticator struct {
 	Options *auth.AuthenticatorOptions
-	Parser  jwt.Parser
-
-	Store store.Store
 
 	model         *mapping.ModelStruct
 	usernameField *mapping.StructField
@@ -53,12 +45,6 @@ func (a *Authenticator) Initialize(c *controller.Controller) error {
 		return errors.Wrap(err, "Authenticator - account model")
 	}
 	a.model = mStruct
-
-	if a.Store == nil {
-		if c.DefaultStore == nil {
-			return errors.Wrap(auth.ErrInitialization, "no store found for the authenticator")
-		}
-	}
 
 	var ok bool
 	a.usernameField, ok = mStruct.FieldByName(accountModel.UsernameField())
@@ -143,7 +129,6 @@ func New(options ...auth.AuthenticatorOption) *Authenticator {
 	}
 	return &Authenticator{
 		Options: o,
-		Store:   o.Store,
 	}
 }
 
@@ -201,16 +186,5 @@ func (a *Authenticator) setHashedPassword(acc auth.Account, password *auth.Passw
 		return err
 	}
 	acc.SetPasswordHash(hashed)
-	return nil
-}
-
-func (a *Authenticator) checkUsername(ctx context.Context, db database.DB, username string) error {
-	cnt, err := db.QueryCtx(ctx, a.model).Filter(filter.New(a.usernameField, filter.OpEqual, username)).Count()
-	if err != nil {
-		return err
-	}
-	if cnt > 0 {
-		return auth.ErrAccountAlreadyExists
-	}
 	return nil
 }
